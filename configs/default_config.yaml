@@ -1,0 +1,46 @@
+# Default configuration for RL-based crop segmentation
+
+# Data paths
+image_path: 'data/raw/satellite_image.tif'
+shapefile_path: 'data/raw/crop_boundaries.shp'
+
+# Data processing
+patch_size: 256
+stride: 128
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+
+# Environment settings
+action_mode: 'patch'  # 'patch' or 'pixel'
+reward_type: 'dice'   # 'dice', 'iou', 'pixel'
+num_actions: 16       # For patch mode: 4x4 grid (must be perfect square)
+sequential: false     # Use sequential environment
+
+# Model architecture
+in_channels: 4        # Image channels + predicted mask channel
+feature_extractor: 'cnn'  # 'cnn' or 'resnet'
+
+# Training hyperparameters
+num_epochs: 100
+episodes_per_epoch: 10
+val_episodes: 5
+
+# PPO hyperparameters
+learning_rate: 3.0e-4
+gamma: 0.99           # Discount factor
+gae_lambda: 0.95      # GAE lambda
+clip_epsilon: 0.2     # PPO clipping parameter
+value_coef: 0.5       # Value loss coefficient
+entropy_coef: 0.01    # Entropy bonus coefficient
+ppo_epochs: 4         # Number of PPO update epochs
+batch_size: 64        # Mini-batch size
+
+# Logging and checkpointing
+save_interval: 10
+use_wandb: false
+wandb_project: 'rl_crop_segmentation'
+experiment_name: 'default_experiment'
+
+# Output
+output_dir: 'experiments/default'

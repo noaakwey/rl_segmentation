@@ -1,0 +1,46 @@
+# Fast training configuration for quick experiments
+
+# Data paths
+image_path: 'data/raw/satellite_image.tif'
+shapefile_path: 'data/raw/crop_boundaries.shp'
+
+# Data processing
+patch_size: 128  # Smaller patches for faster training
+stride: 64
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+
+# Environment settings
+action_mode: 'patch'
+reward_type: 'dice'
+num_actions: 9  # 3x3 grid (faster)
+sequential: false
+
+# Model architecture
+in_channels: 4
+feature_extractor: 'cnn'
+
+# Training hyperparameters (reduced for speed)
+num_epochs: 20
+episodes_per_epoch: 5
+val_episodes: 3
+
+# PPO hyperparameters
+learning_rate: 5.0e-4  # Higher learning rate
+gamma: 0.99
+gae_lambda: 0.95
+clip_epsilon: 0.2
+value_coef: 0.5
+entropy_coef: 0.01
+ppo_epochs: 2  # Fewer epochs
+batch_size: 32  # Smaller batches
+
+# Logging and checkpointing
+save_interval: 5
+use_wandb: false
+wandb_project: 'rl_crop_segmentation'
+experiment_name: 'fast_training'
+
+# Output
+output_dir: 'experiments/fast_training'

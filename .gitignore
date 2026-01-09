@@ -1,0 +1,103 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Data
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Experiments and outputs
+experiments/
+outputs/
+runs/
+wandb/
+*.log
+
+# Models and checkpoints
+*.pt
+*.pth
+*.h5
+*.ckpt
+
+# Plots and visualizations
+*.png
+*.jpg
+*.jpeg
+*.pdf
+!docs/images/*.png
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Geospatial temporary files
+*.shp.xml
+*.cpg
+*.dbf
+*.prj
+*.sbn
+*.sbx
+*.shx
+*.qpj
+
+# Config overrides
+configs/local_*.yaml
+configs/secret_*.yaml
+
+# Test files
+test_config.yaml
+dummy.shp
