@@ -350,6 +350,7 @@ class PPOAgent:
 class DQNAgent:
     """
     Deep Q-Network (DQN) agent as alternative to PPO.
+    [EXPERIMENTAL] This agent is currently a placeholder for future research.
     """
 
     def __init__(self,

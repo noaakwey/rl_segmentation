@@ -32,39 +32,14 @@ rl_segmentation/
 │
 ├── 🚀 ADVANCED КОМПОНЕНТЫ (src/) - ПРЕВОСХОДЯТ SOTA CNN
 │   ├── hierarchical_agent.py        # Hierarchical Multi-Scale RL (650 строк)
-│   │   ├── HierarchicalSegmentationPolicy  # 3-level иерархия
-│   │   ├── MultiScaleAttention            # Multi-scale внимание (1x,2x,4x,8x)
-│   │   ├── BoundaryRefinementModule       # Активное уточнение границ
-│   │   ├── UncertaintyEstimator           # Оценка неопределенности
-│   │   └── SpatialRelationGraph           # GNN для пространственных связей
-│   │
 │   ├── contrastive_learning.py      # Contrastive Learning (450 строк)
-│   │   ├── ContrastiveEncoder             # Encoder для embeddings
-│   │   ├── SupConLoss                     # Supervised Contrastive Loss
-│   │   ├── BoundaryContrastiveLearning    # Для границ полей
-│   │   ├── FieldTypeContrastive           # Для типов полей
-│   │   └── HardNegativeMining             # Hard negative mining
-│   │
 │   ├── meta_learning.py             # Meta-Learning (550 строк)
-│   │   ├── MAMLSegmentation               # Model-Agnostic Meta-Learning
-│   │   ├── ProtoNet                       # Prototypical Networks
-│   │   ├── DomainAdaptation               # Domain adaptation
-│   │   ├── TaskDistribution               # Task sampling
-│   │   └── GradientReversalFunction       # Gradient reversal layer
-│   │
 │   ├── active_learning.py           # Active Learning (600 строк)
-│   │   ├── UncertaintyEstimation          # MC Dropout, BALD, Entropy
-│   │   ├── ActiveLearningSelector         # Uncertainty/Diversity sampling
-│   │   ├── QueryStrategy                  # Learnable query strategy
-│   │   ├── HumanInTheLoop                 # Human-in-the-loop интерфейс
-│   │   └── CurriculumActiveLearning       # Curriculum learning
-│   │
-│   └── advanced_agent.py            # Интеграция всего (550 строк)
-│       ├── AdvancedRLAgent                # Объединяет все компоненты
-│       ├── train_step                     # Multi-stage training
-│       ├── meta_train_step                # Meta-learning training
-│       ├── active_query                   # Active learning queries
-│       └── compare_with_cnn               # Сравнение с CNN
+│   ├── advanced_agent.py            # Интеграция всего (550 строк)
+│   ├── augmentations.py             # Аугментация для гео-данных
+│   ├── backbones.py                # CNN Backbones (ResNet, etc.)
+│   ├── sampling_strategies.py       # Стратегии выбора эталонов
+│   └── inference.py                 # Inference на новых снимках
 │
 ├── 🛠️ УТИЛИТЫ (utils/)
 │   ├── __init__.py
@@ -116,8 +91,8 @@ rl_segmentation/
   - 3 конфигурации
 
 Advanced компоненты:
-  - 5 модулей
-  - ~2,800 строк кода
+  - 8 модулей
+  - ~3,500 строк кода
   - 10+ инновационных алгоритмов
 
 Документация:
@@ -125,8 +100,8 @@ Advanced компоненты:
   - ~1,500 строк документации
 
 Итого:
-  ✅ 14 Python модулей
-  ✅ ~6,000 строк кода
+  ✅ 17 Python модулей
+  ✅ ~6,700 строк кода
   ✅ ~1,500 строк документации
   ✅ 10+ state-of-the-art инноваций
 

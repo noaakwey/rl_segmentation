@@ -400,39 +400,22 @@ import rasterio
 agent = PPOAgent(in_channels=4, num_actions=16)
 agent.load('path/to/best_model.pt')
 
-# Загрузка нового изображения
-loader = GeoDataLoader(
-    image_path="new_satellite_image.tif",
-    shapefile_path=None,  # Нет ground truth
-    patch_size=256
-)
-image = loader.load_image()
-
-# Создание пустого shapefile для совместимости
-import geopandas as gpd
-from shapely.geometry import Polygon
-gdf = gpd.GeoDataFrame(geometry=[Polygon()], crs=loader.crs)
-loader.shapefile_path = "dummy.shp"
-gdf.to_file("dummy.shp")
-
-mask = loader.create_mask(gdf)
-patches = loader.extract_patches()
-
 # Предсказание для каждого патча
 predictions = []
 for patch in patches:
+    # Теперь можно не передавать mask_patches, если нет эталона
     env = CropSegmentationEnv(
         image_patches=[patch['image']],
-        mask_patches=[patch['mask']]
+        mask_patches=[]  # Достаточно пустого списка
     )
     obs, _ = env.reset()
     done = False
-
+    
     while not done:
         action, _, _ = agent.select_action(obs)
         obs, _, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
-
+    
     predictions.append(env.predicted_mask)
 
 # Сохранение результата

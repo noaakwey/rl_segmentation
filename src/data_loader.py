@@ -91,8 +91,11 @@ class GeoDataLoader:
         Returns:
             GeoDataFrame with crop boundaries
         """
-        logger.info(f"Loading shapefile from {self.shapefile_path}")
+        if self.shapefile_path is None or not os.path.exists(self.shapefile_path):
+            logger.info("No shapefile provided or file not found. Returning empty GeoDataFrame.")
+            return gpd.GeoDataFrame(geometry=[], crs=self.crs)
 
+        logger.info(f"Loading shapefile from {self.shapefile_path}")
         gdf = gpd.read_file(self.shapefile_path)
 
         # Reproject to match image CRS if needed
@@ -116,14 +119,19 @@ class GeoDataLoader:
         if gdf is None:
             gdf = self.load_shapefile()
 
-        logger.info("Creating binary mask from polygons")
-
         # Get image shape
         height = self.metadata['height']
         width = self.metadata['width']
 
+        if len(gdf) == 0:
+            logger.info("Empty GeoDataFrame. Creating zero mask.")
+            self.mask_data = np.zeros((height, width), dtype=np.uint8)
+            return self.mask_data
+
+        logger.info("Creating binary mask from polygons")
+
         # Rasterize polygons
-        shapes = [(geom, 1) for geom in gdf.geometry]
+        shapes = [(geom, 1) for geom in gdf.geometry if geom is not None]
         mask = rasterize(
             shapes,
             out_shape=(height, width),

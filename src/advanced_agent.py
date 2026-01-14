@@ -115,6 +115,9 @@ class AdvancedRLAgent:
         if use_active_learning:
             self.query_optimizer = optim.Adam(self.query_strategy.parameters(), lr=1e-4)
 
+        # Domain adaptation data
+        self.target_images = None
+
         # Training statistics
         self.train_stats = {
             'policy_loss': [],
@@ -204,7 +207,8 @@ class AdvancedRLAgent:
         boundary_loss = nn.BCELoss()(output['boundary_map'], boundary_gt)
 
         # Value losses
-        # Returns computed from actual rewards (simplified here)
+        # TODO: Compute returns from actual rewards in the training pipeline
+        # These are currently placeholders and should be passed from the environment
         returns_coarse = torch.zeros_like(output['coarse_value'])
         returns_refine = torch.zeros_like(output['refine_value'])
 
@@ -243,7 +247,7 @@ class AdvancedRLAgent:
             losses['contrastive_loss'] = contrastive_loss.item()
 
         # 3. Domain Adaptation (if enabled and multi-domain)
-        if self.use_meta_learning and hasattr(self, 'target_images'):
+        if self.use_meta_learning and self.target_images is not None:
             domain_loss, _ = self.domain_adaptation(images, self.target_images)
 
             # This loss is added to policy loss in practice
