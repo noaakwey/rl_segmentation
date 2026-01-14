@@ -525,7 +525,7 @@ MIT License
 
 ## 📧 Контакты
 
-Для вопросов и предложений: [your-email@example.com]
+Для вопросов и предложений: [cradles_stigma.95@icloud.com]
 
 ## 📚 Цитирование
 
@@ -534,9 +534,9 @@ MIT License
 ```bibtex
 @software{rl_crop_segmentation,
   title={RL-based Crop Segmentation Pipeline},
-  author={Your Name},
-  year={2024},
-  url={https://github.com/yourusername/rl_segmentation}
+  author={Artur Gafurov},
+  year={2026},
+  url={https://github.com/noaakwey/rl_segmentation}
 }
 ```
 
