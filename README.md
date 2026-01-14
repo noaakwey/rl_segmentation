@@ -19,6 +19,7 @@
 
 ### Установка
 
+#### Linux / macOS
 ```bash
 # Клонировать репозиторий
 git clone <repository-url>
@@ -26,13 +27,30 @@ cd rl_segmentation
 
 # Создать виртуальное окружение
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# или
-venv\Scripts\activate  # Windows
+source venv/bin/activate
 
 # Установить зависимости
 pip install -r requirements.txt
+
+# Быстрый старт
+./quick_start.sh
 ```
+
+#### Windows
+```batch
+# Клонировать репозиторий
+git clone <repository-url>
+cd rl_segmentation
+
+# Использовать автоматический скрипт настройки
+quick_start.bat
+```
+
+> [!TIP]
+> На Windows Server при возникновении ошибок с установкой геопространственных библиотек (`rasterio`, `fiona`, `pyproj`), рекомендуется использовать прекомпилированные колеса (wheels) или установить их через `conda`:
+> ```bash
+> conda install -c conda-forge rasterio geopandas
+> ```
 
 ### Подготовка данных
 
