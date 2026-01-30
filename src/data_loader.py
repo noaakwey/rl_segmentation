@@ -28,7 +28,8 @@ class GeoDataLoader:
                  shapefile_path: str,
                  patch_size: int = 256,
                  stride: int = 128,
-                 normalize: bool = True):
+                 normalize: bool = True,
+                 bands: Optional[List[int]] = None):
         """
         Initialize data loader.
 
@@ -44,6 +45,7 @@ class GeoDataLoader:
         self.patch_size = patch_size
         self.stride = stride
         self.normalize = normalize
+        self.bands = bands
 
         # Load data
         self.image_data = None
@@ -63,13 +65,16 @@ class GeoDataLoader:
 
         with rasterio.open(self.image_path) as src:
             # Read all bands
-            image = src.read()
+            if self.bands:
+                image = src.read(self.bands)
+            else:
+                image = src.read()
             self.transform = src.transform
             self.crs = src.crs
             self.metadata = {
                 'width': src.width,
                 'height': src.height,
-                'count': src.count,
+                'count': image.shape[0],
                 'dtype': src.dtypes[0],
                 'bounds': src.bounds
             }
@@ -204,13 +209,17 @@ class GeoDataLoader:
                 img_patch = image[:, y:y+self.patch_size, x:x+self.patch_size]
                 mask_patch = mask[y:y+self.patch_size, x:x+self.patch_size]
 
+                crop_fraction = float(np.mean(mask_patch > 0.5))
+                has_crop = crop_fraction > 0.0
+
                 # Skip patches with no crop fields (optional)
                 # if np.sum(mask_patch) > 0:
                 patches.append({
                     'image': img_patch,
                     'mask': mask_patch,
                     'position': (y, x),
-                    'has_crop': np.sum(mask_patch) > 0
+                    'has_crop': has_crop,
+                    'crop_fraction': crop_fraction
                 })
 
         logger.info(f"Extracted {len(patches)} patches")

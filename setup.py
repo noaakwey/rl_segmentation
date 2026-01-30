@@ -1,5 +1,5 @@
 """
-Setup script for RL-based Crop Segmentation package.
+Setup script for Crop Segmentation (Supervised U-Net) package.
 """
 
 from setuptools import setup, find_packages
@@ -15,14 +15,14 @@ with open('requirements.txt') as f:
     requirements = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
 setup(
-    name='rl_segmentation',
+    name='crop_segmentation',
     version='0.1.0',
     author='Your Name',
     author_email='your.email@example.com',
-    description='Reinforcement Learning-based Crop Segmentation from Satellite Imagery',
+    description='Supervised U-Net Crop Segmentation from Satellite Imagery',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/yourusername/rl_segmentation',
+    url='https://github.com/yourusername/crop_segmentation',
     packages=find_packages(),
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -48,8 +48,9 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'rl-seg-train=src.train:main',
-            'rl-seg-eval=src.evaluate:main',
+            'unet-train=src.supervised_train:main',
+            'unet-eval=src.supervised_eval:main',
+            'unet-infer=src.production_unet_infer:main',
         ],
     },
     include_package_data=True,
