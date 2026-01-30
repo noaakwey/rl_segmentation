@@ -209,14 +209,22 @@ def evaluate_supervised(config: Dict, checkpoint_path: str) -> Tuple[Dict, float
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     sup_cfg = config.get('supervised', {})
-    bands = sup_cfg.get('bands')
+    bands = _parse_bands(sup_cfg.get('bands'))
+    normalize_cfg = config.get('normalization', {})
+    normalize_mode = normalize_cfg.get('mode', 'percentile')
+    p_low = float(normalize_cfg.get('p_low', 1.0))
+    p_high = float(normalize_cfg.get('p_high', 99.0))
+
     loader = GeoDataLoader(
         image_path=config['image_path'],
         shapefile_path=config['shapefile_path'],
         patch_size=config['patch_size'],
         stride=config['stride'],
         normalize=True,
-        bands=bands
+        bands=bands,
+        normalize_mode=normalize_mode,
+        p_low=p_low,
+        p_high=p_high
     )
 
     image, _ = loader.load_all()
@@ -268,6 +276,19 @@ def evaluate_supervised(config: Dict, checkpoint_path: str) -> Tuple[Dict, float
     _plot_metrics_distribution(aggregated, output_dir)
 
     return aggregated, best_threshold
+
+
+def _parse_bands(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        if value.strip().lower() == "all":
+            return None
+        parts = [p.strip() for p in value.split(",") if p.strip()]
+        return [int(p) for p in parts]
+    if isinstance(value, (list, tuple)):
+        return [int(v) for v in value]
+    return None
 
 
 def main():

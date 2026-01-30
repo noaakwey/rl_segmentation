@@ -16,8 +16,10 @@ python src/production_unet_infer.py --image "path/to/large.tif" --checkpoint "ex
 ```
 
 ## Config hints
-- supervised.bands: list of channels (e.g. 1..9)
-- production.bands: channels for production inference
+- normalization: per-band percentile clip (p_low/p_high)
+- supervised.bands: all or list (e.g. [1,3,5])
+- production.bands: all or list (e.g. "5,3,7")
 - production.tile_size, production.context: speed/quality tradeoff
 - production.batch_size: GPU acceleration
 - production.vectorize: enable/disable vectorization
+- ablations.enabled: run multi-band ablation sweep

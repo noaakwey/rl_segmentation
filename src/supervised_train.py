@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.data_loader import GeoDataLoader, DatasetSplitter
 from src.models import UNet
 from src.rewards import MetricsCalculator
+from src.supervised_eval import evaluate_supervised
 
 
 class PatchDataset(Dataset):
@@ -55,15 +56,24 @@ def build_sampler(patches: List[Dict], min_crop_fraction: float = 0.01) -> Weigh
 def train_supervised(config: Dict):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    sup_cfg = config.get('supervised', {})
+    bands = _parse_bands(sup_cfg.get('bands'))
+    normalize_cfg = config.get('normalization', {})
+    normalize_mode = normalize_cfg.get('mode', 'percentile')
+    p_low = float(normalize_cfg.get('p_low', 1.0))
+    p_high = float(normalize_cfg.get('p_high', 99.0))
+
     # Load data
-    bands = sup_cfg.get('bands')
     loader = GeoDataLoader(
         image_path=config['image_path'],
         shapefile_path=config['shapefile_path'],
         patch_size=config['patch_size'],
         stride=config['stride'],
         normalize=True,
-        bands=bands
+        bands=bands,
+        normalize_mode=normalize_mode,
+        p_low=p_low,
+        p_high=p_high
     )
 
     image, _ = loader.load_all()
@@ -79,7 +89,6 @@ def train_supervised(config: Dict):
     train_ds = PatchDataset(train_patches)
     val_ds = PatchDataset(val_patches)
 
-    sup_cfg = config.get('supervised', {})
     batch_size = sup_cfg.get('batch_size', 8)
     num_epochs = sup_cfg.get('num_epochs', 50)
     lr = sup_cfg.get('learning_rate', 3e-4)
@@ -166,6 +175,63 @@ def train_supervised(config: Dict):
             break
 
 
+def _parse_bands(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        if value.strip().lower() == "all":
+            return None
+        parts = [p.strip() for p in value.split(",") if p.strip()]
+        return [int(p) for p in parts]
+    if isinstance(value, (list, tuple)):
+        return [int(v) for v in value]
+    return None
+
+
+def run_ablations(config: Dict):
+    """Run channel ablations if enabled in config."""
+    ab_cfg = config.get("ablations", {})
+    if not ab_cfg.get("enabled", False):
+        train_supervised(config)
+        return
+
+    variants = ab_cfg.get("variants", [])
+    if not variants:
+        train_supervised(config)
+        return
+
+    base_out = Path(config.get("output_dir", "experiments/ablations"))
+    summary = []
+
+    for variant in variants:
+        name = variant.get("name", "variant")
+        bands = _parse_bands(variant.get("bands"))
+        run_config = dict(config)
+        run_config["output_dir"] = str(base_out / name)
+
+        run_config.setdefault("supervised", {})
+        run_config["supervised"] = dict(run_config["supervised"])
+        run_config["supervised"]["bands"] = bands if bands is not None else "all"
+
+        print(f"\n=== Ablation: {name} | bands={bands if bands is not None else 'all'} ===")
+        train_supervised(run_config)
+
+        if ab_cfg.get("run_eval", True):
+            ckpt = str(Path(run_config["output_dir"]) / "checkpoints" / "best_unet.pt")
+            metrics, thr = evaluate_supervised(run_config, ckpt)
+            summary.append({"name": name, "bands": bands if bands is not None else "all", "threshold": thr, **metrics})
+
+    if summary:
+        summary_path = base_out / "ablations_summary.csv"
+        import csv
+        keys = list(summary[0].keys())
+        with open(summary_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=keys)
+            writer.writeheader()
+            writer.writerows(summary)
+        print(f"Ablation summary saved to {summary_path}")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Train supervised U-Net for segmentation')
     parser.add_argument('--config', type=str, default='configs/custom_config.yaml',
@@ -178,7 +244,7 @@ def main():
     else:
         raise FileNotFoundError(f"Config file {args.config} not found.")
 
-    train_supervised(config)
+    run_ablations(config)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@ This repository provides a supervised U-Net pipeline for crop field segmentation
 - TTA for evaluation (optional)
 - Production inference on huge rasters with streaming tiles
 - Vectorization of the predicted mask
+- Flexible band selection (all bands or explicit channel lists)
+- Percentile normalization (1?99) per band
 
 ## Quick start
 
@@ -27,11 +29,13 @@ python src/production_unet_infer.py --image "path/to/large.tif" --checkpoint "ex
 ```
 
 ## Config highlights
-- `supervised.bands`: which bands to use (supports 4, 5, 6, 7, 8, 9+ channels)
-- `production.bands`: which bands to use during production inference
+- `normalization`: per-band percentile clip (p_low/p_high)
+- `supervised.bands`: `all` or list (e.g. `[1,3,5]`)
+- `production.bands`: `all` or list (e.g. `"5,3,7"`)
 - `production.tile_size`, `production.context`: tile streaming settings
 - `production.batch_size`: GPU batch size (when `use_tta: false`)
 - `production.vectorize`: enable/disable vector output
+- `ablations.enabled`: run multi-band ablation sweep
 
 ## Outputs
 - `experiments/my_custom_experiment/checkpoints/best_unet.pt`

@@ -159,6 +159,10 @@ def run_production_inference(
     use_tta = bool(prod_cfg.get("use_tta", config.get("supervised_eval", {}).get("use_tta", True)))
     min_area_pixels = int(prod_cfg.get("min_area_pixels", 1024))
     do_vectorize = bool(prod_cfg.get("vectorize", True))
+    normalize_cfg = config.get("normalization", {})
+    normalize_mode = normalize_cfg.get("mode", "percentile")
+    p_low = float(normalize_cfg.get("p_low", 1.0))
+    p_high = float(normalize_cfg.get("p_high", 99.0))
 
     # Load model
     with rasterio.open(image_path) as src:
@@ -169,6 +173,12 @@ def run_production_inference(
         bands = prod_cfg.get("bands")
         if bands is None:
             bands = list(range(1, required_in_channels + 1))
+        if isinstance(bands, str):
+            if bands.strip().lower() == "all":
+                bands = list(range(1, required_in_channels + 1))
+            else:
+                parts = [p.strip() for p in bands.split(",") if p.strip()]
+                bands = [int(p) for p in parts]
         bands = [int(b) for b in bands]
 
         if len(bands) != required_in_channels:
@@ -250,7 +260,17 @@ def run_production_inference(
                         dst.write(np.zeros((write_h, write_w), dtype=np.uint8), 1, window=write_window)
                         continue
 
-                tile = _normalize(tile)
+                if normalize_mode == "percentile":
+                    tile = tile.astype(np.float32)
+                    for b in range(tile.shape[0]):
+                        p1 = np.percentile(tile[b], p_low)
+                        p99 = np.percentile(tile[b], p_high)
+                        if p99 <= p1:
+                            continue
+                        band = np.clip(tile[b], p1, p99)
+                        tile[b] = (band - p1) / (p99 - p1 + 1e-8)
+                else:
+                    tile = _normalize(tile)
 
                 if use_tta:
                     prob_full = _predict_prob(model, tile, device, use_tta=True)

@@ -29,7 +29,10 @@ class GeoDataLoader:
                  patch_size: int = 256,
                  stride: int = 128,
                  normalize: bool = True,
-                 bands: Optional[List[int]] = None):
+                 bands: Optional[List[int]] = None,
+                 normalize_mode: str = "percentile",
+                 p_low: float = 1.0,
+                 p_high: float = 99.0):
         """
         Initialize data loader.
 
@@ -46,6 +49,9 @@ class GeoDataLoader:
         self.stride = stride
         self.normalize = normalize
         self.bands = bands
+        self.normalize_mode = normalize_mode
+        self.p_low = p_low
+        self.p_high = p_high
 
         # Load data
         self.image_data = None
@@ -159,16 +165,25 @@ class GeoDataLoader:
         Returns:
             Normalized image
         """
-        # Handle different data types
+        image = image.astype(np.float32)
+
+        if self.normalize_mode == "percentile":
+            # Per-band percentile clipping to [0,1]
+            for b in range(image.shape[0]):
+                p_low = np.percentile(image[b], self.p_low)
+                p_high = np.percentile(image[b], self.p_high)
+                if p_high <= p_low:
+                    continue
+                band = np.clip(image[b], p_low, p_high)
+                image[b] = (band - p_low) / (p_high - p_low + 1e-8)
+            return image
+
+        # Fallback: min/max by dtype
         if image.dtype == np.uint8:
-            return image.astype(np.float32) / 255.0
-        elif image.dtype == np.uint16:
-            return image.astype(np.float32) / 65535.0
-        else:
-            # Percentile normalization for float data
-            p2, p98 = np.percentile(image, [2, 98])
-            image = np.clip(image, p2, p98)
-            return (image - p2) / (p98 - p2 + 1e-8)
+            return image / 255.0
+        if image.dtype == np.uint16:
+            return image / 65535.0
+        return image
 
     def extract_patches(self,
                        image: Optional[np.ndarray] = None,
