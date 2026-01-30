@@ -1,0 +1,59 @@
+image_path: data/raw/satellite_image.tif
+shapefile_path: data/raw/crop_boundaries.shp
+patch_size: 256
+stride: 128
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+output_dir: experiments/my_custom_experiment
+seed: 42
+
+normalization:
+  mode: percentile
+  p_low: 1
+  p_high: 99
+
+supervised:
+  batch_size: 8
+  num_epochs: 50
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  min_learning_rate: 0.000001
+  lr_reduce_factor: 0.5
+  lr_reduce_patience: 5
+  early_stopping_patience: 10
+  early_stopping_min_delta: 0.001
+  bce_weight: 0.5
+  dice_weight: 0.5
+  balance: true
+  min_crop_fraction: 0.01
+  base_channels: 32
+  bands: all
+
+supervised_eval:
+  threshold_min: 0.3
+  threshold_max: 0.7
+  threshold_steps: 9
+  n_visualize: 6
+  use_tta: true
+
+production:
+  tile_size: 1024
+  context: 128
+  threshold: 0.7
+  use_tta: false
+  batch_size: 8
+  bands: all
+  min_area_pixels: 4096
+  vectorize: true
+
+ablations:
+  enabled: false
+  run_eval: true
+  variants:
+    - name: rgb
+      bands: [1, 2, 3]
+    - name: rgb_nir
+      bands: [1, 2, 3, 4]
+    - name: indices_only
+      bands: [5, 6, 7]

@@ -1,26 +1,18 @@
 """
-RL-based Crop Segmentation Package
+Crop Segmentation Package (Supervised U-Net).
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Your Name"
 
 from src.data_loader import GeoDataLoader, DatasetSplitter
-from src.environment import CropSegmentationEnv, SequentialSegmentationEnv
-from src.agent import PPOAgent, DQNAgent
 from src.rewards import SegmentationRewards, MetricsCalculator
-from src.models import ActorCriticNetwork, CNNFeatureExtractor, ResNetFeatureExtractor
+from src.models import UNet
 
 __all__ = [
-    'GeoDataLoader',
-    'DatasetSplitter',
-    'CropSegmentationEnv',
-    'SequentialSegmentationEnv',
-    'PPOAgent',
-    'DQNAgent',
-    'SegmentationRewards',
-    'MetricsCalculator',
-    'ActorCriticNetwork',
-    'CNNFeatureExtractor',
-    'ResNetFeatureExtractor',
+    "GeoDataLoader",
+    "DatasetSplitter",
+    "SegmentationRewards",
+    "MetricsCalculator",
+    "UNet",
 ]

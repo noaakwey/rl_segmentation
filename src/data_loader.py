@@ -28,7 +28,11 @@ class GeoDataLoader:
                  shapefile_path: str,
                  patch_size: int = 256,
                  stride: int = 128,
-                 normalize: bool = True):
+                 normalize: bool = True,
+                 bands: Optional[List[int]] = None,
+                 normalize_mode: str = "percentile",
+                 p_low: float = 1.0,
+                 p_high: float = 99.0):
         """
         Initialize data loader.
 
@@ -44,6 +48,10 @@ class GeoDataLoader:
         self.patch_size = patch_size
         self.stride = stride
         self.normalize = normalize
+        self.bands = bands
+        self.normalize_mode = normalize_mode
+        self.p_low = p_low
+        self.p_high = p_high
 
         # Load data
         self.image_data = None
@@ -63,13 +71,16 @@ class GeoDataLoader:
 
         with rasterio.open(self.image_path) as src:
             # Read all bands
-            image = src.read()
+            if self.bands:
+                image = src.read(self.bands)
+            else:
+                image = src.read()
             self.transform = src.transform
             self.crs = src.crs
             self.metadata = {
                 'width': src.width,
                 'height': src.height,
-                'count': src.count,
+                'count': image.shape[0],
                 'dtype': src.dtypes[0],
                 'bounds': src.bounds
             }
@@ -154,16 +165,25 @@ class GeoDataLoader:
         Returns:
             Normalized image
         """
-        # Handle different data types
+        image = image.astype(np.float32)
+
+        if self.normalize_mode == "percentile":
+            # Per-band percentile clipping to [0,1]
+            for b in range(image.shape[0]):
+                p_low = np.percentile(image[b], self.p_low)
+                p_high = np.percentile(image[b], self.p_high)
+                if p_high <= p_low:
+                    continue
+                band = np.clip(image[b], p_low, p_high)
+                image[b] = (band - p_low) / (p_high - p_low + 1e-8)
+            return image
+
+        # Fallback: min/max by dtype
         if image.dtype == np.uint8:
-            return image.astype(np.float32) / 255.0
-        elif image.dtype == np.uint16:
-            return image.astype(np.float32) / 65535.0
-        else:
-            # Percentile normalization for float data
-            p2, p98 = np.percentile(image, [2, 98])
-            image = np.clip(image, p2, p98)
-            return (image - p2) / (p98 - p2 + 1e-8)
+            return image / 255.0
+        if image.dtype == np.uint16:
+            return image / 65535.0
+        return image
 
     def extract_patches(self,
                        image: Optional[np.ndarray] = None,
@@ -204,13 +224,17 @@ class GeoDataLoader:
                 img_patch = image[:, y:y+self.patch_size, x:x+self.patch_size]
                 mask_patch = mask[y:y+self.patch_size, x:x+self.patch_size]
 
+                crop_fraction = float(np.mean(mask_patch > 0.5))
+                has_crop = crop_fraction > 0.0
+
                 # Skip patches with no crop fields (optional)
                 # if np.sum(mask_patch) > 0:
                 patches.append({
                     'image': img_patch,
                     'mask': mask_patch,
                     'position': (y, x),
-                    'has_crop': np.sum(mask_patch) > 0
+                    'has_crop': has_crop,
+                    'crop_fraction': crop_fraction
                 })
 
         logger.info(f"Extracted {len(patches)} patches")
