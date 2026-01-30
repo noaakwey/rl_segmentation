@@ -5,6 +5,7 @@ Evaluation for supervised U-Net segmentation model.
 import os
 import sys
 import argparse
+import json
 from pathlib import Path
 from typing import Dict, List, Tuple
 import numpy as np
@@ -70,14 +71,21 @@ def _predict_probs(model: UNet,
     return probs
 
 
-def _aggregate_metrics(all_metrics: List[Dict[str, float]]) -> Dict[str, float]:
+def _aggregate_metrics(all_metrics: List[Dict[str, float]], prefix: str = "") -> Dict[str, float]:
+    if not all_metrics:
+        return {}
     aggregated: Dict[str, float] = {}
     for key in all_metrics[0].keys():
         values = [m[key] for m in all_metrics]
-        aggregated[f'{key}_mean'] = float(np.mean(values))
-        aggregated[f'{key}_std'] = float(np.std(values))
-        aggregated[f'{key}_median'] = float(np.median(values))
+        name = f"{prefix}{key}" if prefix else key
+        aggregated[f'{name}_mean'] = float(np.mean(values))
+        aggregated[f'{name}_std'] = float(np.std(values))
+        aggregated[f'{name}_median'] = float(np.median(values))
     return aggregated
+
+
+def _is_non_empty_mask(mask: np.ndarray) -> bool:
+    return bool(np.any(mask > 0.5))
 
 
 def _evaluate_at_threshold(probs: List[np.ndarray],
@@ -86,25 +94,37 @@ def _evaluate_at_threshold(probs: List[np.ndarray],
                            metrics_calc: MetricsCalculator) -> Dict[str, float]:
     """Evaluate metrics at a fixed probability threshold."""
     all_metrics: List[Dict[str, float]] = []
+    non_empty_metrics: List[Dict[str, float]] = []
+    non_empty_count = 0
     for prob, patch in zip(probs, patches):
         pred = (prob > threshold).astype(np.float32)
         gt = patch['mask']
-        all_metrics.append(metrics_calc.calculate_all(pred, gt))
-    return _aggregate_metrics(all_metrics)
+        metrics = metrics_calc.calculate_all(pred, gt)
+        all_metrics.append(metrics)
+        if _is_non_empty_mask(gt):
+            non_empty_metrics.append(metrics)
+            non_empty_count += 1
+
+    aggregated = _aggregate_metrics(all_metrics)
+    aggregated.update(_aggregate_metrics(non_empty_metrics, prefix="non_empty_"))
+    total = len(patches)
+    aggregated["non_empty_count"] = int(non_empty_count)
+    aggregated["non_empty_ratio"] = float(non_empty_count / total) if total > 0 else 0.0
+    return aggregated
 
 
 def _find_best_threshold(val_probs: List[np.ndarray],
                          val_patches: List[Dict],
                          metrics_calc: MetricsCalculator,
                          thresholds: np.ndarray) -> Tuple[float, Dict[str, float]]:
-    """Select threshold by maximizing val Dice (reduces overfitting to test)."""
+    """Select threshold by maximizing val Dice on non-empty masks (reduces bias from empty patches)."""
     best_threshold = float(thresholds[0])
     best_metrics: Dict[str, float] = {}
     best_dice = -1.0
 
     for thr in thresholds:
         metrics = _evaluate_at_threshold(val_probs, val_patches, float(thr), metrics_calc)
-        dice = metrics['dice_mean']
+        dice = metrics.get('non_empty_dice_mean', metrics.get('dice_mean', -1.0))
         if dice > best_dice:
             best_dice = dice
             best_threshold = float(thr)
@@ -255,7 +275,8 @@ def evaluate_supervised(config: Dict, checkpoint_path: str) -> Tuple[Dict, float
     print("Predicting on validation set for threshold selection...")
     val_probs = _predict_probs(model, val_patches, device, use_tta=use_tta)
     best_threshold, val_metrics = _find_best_threshold(val_probs, val_patches, metrics_calc, thresholds)
-    print(f"Best threshold on val: {best_threshold:.3f} (val dice={val_metrics['dice_mean']:.4f})")
+    val_dice = val_metrics.get('non_empty_dice_mean', val_metrics.get('dice_mean', 0.0))
+    print(f"Best threshold on val: {best_threshold:.3f} (val non-empty dice={val_dice:.4f})")
 
     print("Predicting on test set...")
     test_probs = _predict_probs(model, test_patches, device, use_tta=use_tta)
@@ -274,6 +295,14 @@ def evaluate_supervised(config: Dict, checkpoint_path: str) -> Tuple[Dict, float
         n_samples=int(eval_cfg.get('n_visualize', 6))
     )
     _plot_metrics_distribution(aggregated, output_dir)
+
+    metrics_path = output_dir / 'supervised_metrics.json'
+    with open(metrics_path, 'w', encoding='utf-8') as f:
+        json.dump({
+            "threshold_selected_on_val": float(best_threshold),
+            "metrics": aggregated
+        }, f, indent=2, ensure_ascii=True)
+    print(f"Metrics saved to {metrics_path}")
 
     return aggregated, best_threshold
 
