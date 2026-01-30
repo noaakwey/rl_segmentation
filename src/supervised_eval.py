@@ -23,8 +23,27 @@ from src.models import UNet
 from src.rewards import MetricsCalculator
 
 
-def _apply_tta(image: np.ndarray) -> List[Tuple[np.ndarray, str]]:
+def _apply_tta(image: np.ndarray, mode: str) -> List[Tuple[np.ndarray, str]]:
     """Return TTA variants with tags describing the transform."""
+    mode = (mode or "basic").lower()
+    variants: List[Tuple[np.ndarray, str]] = []
+
+    def _rot(img: np.ndarray, k: int) -> np.ndarray:
+        return np.rot90(img, k=k, axes=(1, 2)).copy()
+
+    if mode == "rot4":
+        for k, tag in [(0, "rot0"), (1, "rot90"), (2, "rot180"), (3, "rot270")]:
+            variants.append((_rot(image, k), tag))
+        return variants
+
+    if mode == "fliprot":
+        for k, tag in [(0, "rot0"), (1, "rot90"), (2, "rot180"), (3, "rot270")]:
+            img = _rot(image, k)
+            variants.append((img, tag))
+            variants.append((np.flip(img, axis=2).copy(), f"{tag}_hflip"))
+        return variants
+
+    # "basic" (default): flips only
     return [
         (image, 'none'),
         (np.flip(image, axis=2).copy(), 'hflip'),
@@ -41,13 +60,26 @@ def _invert_tta(mask: np.ndarray, tag: str) -> np.ndarray:
         return np.flip(mask, axis=0)
     if tag == 'hvflip':
         return np.flip(np.flip(mask, axis=0), axis=1)
+
+    base = tag
+    if tag.endswith("_hflip"):
+        base = tag.replace("_hflip", "")
+        mask = np.flip(mask, axis=1)
+
+    if base == "rot90":
+        return np.rot90(mask, k=3, axes=(0, 1))
+    if base == "rot180":
+        return np.rot90(mask, k=2, axes=(0, 1))
+    if base == "rot270":
+        return np.rot90(mask, k=1, axes=(0, 1))
     return mask
 
 
 def _predict_probs(model: UNet,
                    patches: List[Dict],
                    device: torch.device,
-                   use_tta: bool = False) -> List[np.ndarray]:
+                   use_tta: bool = False,
+                   tta_mode: str = "basic") -> List[np.ndarray]:
     """Predict probability masks for a list of patches (optionally with TTA)."""
     probs = []
     with torch.no_grad():
@@ -59,7 +91,7 @@ def _predict_probs(model: UNet,
                 prob = torch.sigmoid(logits)[0, 0].detach().cpu().numpy()
             else:
                 tta_probs = []
-                for aug_img, tag in _apply_tta(image):
+                for aug_img, tag in _apply_tta(image, tta_mode):
                     img = torch.from_numpy(aug_img).float().unsqueeze(0).to(device)
                     logits = model(img)
                     aug_prob = torch.sigmoid(logits)[0, 0].detach().cpu().numpy()
@@ -116,17 +148,19 @@ def _evaluate_at_threshold(probs: List[np.ndarray],
 def _find_best_threshold(val_probs: List[np.ndarray],
                          val_patches: List[Dict],
                          metrics_calc: MetricsCalculator,
-                         thresholds: np.ndarray) -> Tuple[float, Dict[str, float]]:
-    """Select threshold by maximizing val Dice on non-empty masks (reduces bias from empty patches)."""
+                         thresholds: np.ndarray,
+                         selection_metric: str) -> Tuple[float, Dict[str, float]]:
+    """Select threshold by maximizing chosen metric on non-empty masks."""
     best_threshold = float(thresholds[0])
     best_metrics: Dict[str, float] = {}
     best_dice = -1.0
+    selection_metric = (selection_metric or "non_empty_f1_mean").strip()
 
     for thr in thresholds:
         metrics = _evaluate_at_threshold(val_probs, val_patches, float(thr), metrics_calc)
-        dice = metrics.get('non_empty_dice_mean', metrics.get('dice_mean', -1.0))
-        if dice > best_dice:
-            best_dice = dice
+        score = metrics.get(selection_metric, metrics.get('non_empty_f1_mean', metrics.get('non_empty_dice_mean', -1.0)))
+        if score > best_dice:
+            best_dice = score
             best_threshold = float(thr)
             best_metrics = metrics
 
@@ -271,15 +305,23 @@ def evaluate_supervised(config: Dict, checkpoint_path: str) -> Tuple[Dict, float
         int(eval_cfg.get('threshold_steps', 9))
     )
     use_tta = bool(eval_cfg.get('use_tta', True))
+    tta_mode = eval_cfg.get('tta_mode', 'basic')
+    selection_metric = eval_cfg.get('selection_metric', 'non_empty_f1_mean')
 
     print("Predicting on validation set for threshold selection...")
-    val_probs = _predict_probs(model, val_patches, device, use_tta=use_tta)
-    best_threshold, val_metrics = _find_best_threshold(val_probs, val_patches, metrics_calc, thresholds)
-    val_dice = val_metrics.get('non_empty_dice_mean', val_metrics.get('dice_mean', 0.0))
-    print(f"Best threshold on val: {best_threshold:.3f} (val non-empty dice={val_dice:.4f})")
+    val_probs = _predict_probs(model, val_patches, device, use_tta=use_tta, tta_mode=tta_mode)
+    best_threshold, val_metrics = _find_best_threshold(
+        val_probs,
+        val_patches,
+        metrics_calc,
+        thresholds,
+        selection_metric=selection_metric
+    )
+    val_score = val_metrics.get(selection_metric, val_metrics.get('non_empty_f1_mean', 0.0))
+    print(f"Best threshold on val: {best_threshold:.3f} ({selection_metric}={val_score:.4f})")
 
     print("Predicting on test set...")
-    test_probs = _predict_probs(model, test_patches, device, use_tta=use_tta)
+    test_probs = _predict_probs(model, test_patches, device, use_tta=use_tta, tta_mode=tta_mode)
 
     print("Evaluating on test set...")
     aggregated = _evaluate_at_threshold(test_probs, test_patches, best_threshold, metrics_calc)

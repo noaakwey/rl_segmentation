@@ -10,6 +10,7 @@ from typing import Dict, List
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from tqdm import tqdm
 import yaml
@@ -45,12 +46,103 @@ def dice_loss(logits: torch.Tensor, targets: torch.Tensor, smooth: float = 1e-6)
     return 1.0 - dice.mean()
 
 
-def build_sampler(patches: List[Dict], min_crop_fraction: float = 0.01) -> WeightedRandomSampler:
+def focal_loss(logits: torch.Tensor,
+               targets: torch.Tensor,
+               alpha: float = 0.25,
+               gamma: float = 2.0) -> torch.Tensor:
+    bce = F.binary_cross_entropy_with_logits(logits, targets, reduction='none')
+    prob = torch.sigmoid(logits)
+    p_t = targets * prob + (1 - targets) * (1 - prob)
+    modulating = (1 - p_t) ** gamma
+    alpha_factor = targets * alpha + (1 - targets) * (1 - alpha)
+    loss = alpha_factor * modulating * bce
+    return loss.mean()
+
+
+def tversky_loss(probs: torch.Tensor,
+                 targets: torch.Tensor,
+                 alpha: float = 0.5,
+                 beta: float = 0.5,
+                 smooth: float = 1e-6) -> torch.Tensor:
+    tp = (probs * targets).sum(dim=(2, 3))
+    fp = (probs * (1 - targets)).sum(dim=(2, 3))
+    fn = ((1 - probs) * targets).sum(dim=(2, 3))
+    tversky = (tp + smooth) / (tp + alpha * fp + beta * fn + smooth)
+    return 1.0 - tversky.mean()
+
+
+def _boundary_mask(targets: torch.Tensor, dilation: int = 2) -> torch.Tensor:
+    if dilation <= 0:
+        return targets
+    k = 2 * dilation + 1
+    dilated = F.max_pool2d(targets, kernel_size=k, stride=1, padding=dilation)
+    eroded = 1.0 - F.max_pool2d(1.0 - targets, kernel_size=k, stride=1, padding=dilation)
+    boundary = (dilated - eroded).clamp(0.0, 1.0)
+    return boundary
+
+
+def boundary_dice_loss(logits: torch.Tensor,
+                       targets: torch.Tensor,
+                       dilation: int = 2,
+                       smooth: float = 1e-6) -> torch.Tensor:
+    probs = torch.sigmoid(logits)
+    boundary = _boundary_mask(targets, dilation=dilation)
+    intersection = (probs * boundary).sum(dim=(2, 3))
+    union = probs.sum(dim=(2, 3)) + boundary.sum(dim=(2, 3))
+    dice = (2.0 * intersection + smooth) / (union + smooth)
+    return 1.0 - dice.mean()
+
+
+def build_sampler(patches: List[Dict],
+                  min_crop_fraction: float = 0.01,
+                  pos_weight: float = 1.0,
+                  neg_weight: float = 0.25,
+                  crop_power: float = 0.0,
+                  boundary_weight: float = 0.0) -> WeightedRandomSampler:
     weights = []
+    boundary_weight = float(boundary_weight)
+    crop_power = float(crop_power)
     for p in patches:
-        is_pos = p.get('crop_fraction', 0.0) >= min_crop_fraction
-        weights.append(1.0 if is_pos else 0.25)
+        crop_fraction = float(p.get('crop_fraction', 0.0))
+        is_pos = crop_fraction >= min_crop_fraction
+        if not is_pos:
+            weights.append(neg_weight)
+            continue
+
+        weight = pos_weight
+        if crop_power > 0.0:
+            weight *= (crop_fraction ** crop_power)
+
+        if boundary_weight > 0.0:
+            try:
+                from scipy.ndimage import binary_dilation, binary_erosion
+                mask = (p.get('mask') > 0.5).astype(np.uint8)
+                if mask.ndim == 2:
+                    boundary = binary_dilation(mask, iterations=1) ^ binary_erosion(mask, iterations=1)
+                    boundary_ratio = float(boundary.sum() / max(1, boundary.size))
+                    weight *= (1.0 + boundary_weight * boundary_ratio)
+            except Exception:
+                pass
+
+        weights.append(weight)
     return WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
+
+
+def _aggregate_metrics(all_metrics: List[Dict[str, float]], prefix: str = "") -> Dict[str, float]:
+    if not all_metrics:
+        return {}
+    aggregated: Dict[str, float] = {}
+    for key in all_metrics[0].keys():
+        values = [m[key] for m in all_metrics]
+        name = f"{prefix}{key}" if prefix else key
+        aggregated[f'{name}_mean'] = float(np.mean(values))
+        aggregated[f'{name}_std'] = float(np.std(values))
+        aggregated[f'{name}_median'] = float(np.median(values))
+    return aggregated
+
+
+def _is_non_empty_mask(mask: np.ndarray) -> bool:
+    return bool(np.any(mask > 0.5))
 
 
 def train_supervised(config: Dict):
@@ -95,11 +187,29 @@ def train_supervised(config: Dict):
     weight_decay = sup_cfg.get('weight_decay', 1e-4)
     bce_weight = sup_cfg.get('bce_weight', 0.5)
     dice_weight = sup_cfg.get('dice_weight', 0.5)
+    focal_weight = float(sup_cfg.get('focal_weight', 0.0))
+    focal_alpha = float(sup_cfg.get('focal_alpha', 0.25))
+    focal_gamma = float(sup_cfg.get('focal_gamma', 2.0))
+    tversky_weight = float(sup_cfg.get('tversky_weight', 0.0))
+    tversky_alpha = float(sup_cfg.get('tversky_alpha', 0.5))
+    tversky_beta = float(sup_cfg.get('tversky_beta', 0.5))
+    boundary_weight = float(sup_cfg.get('boundary_weight', 0.0))
+    boundary_dilation = int(sup_cfg.get('boundary_dilation', 2))
+    boundary_bg_weight = float(sup_cfg.get('boundary_bg_weight', 0.0))
     early_stopping_patience = int(sup_cfg.get('early_stopping_patience', 10))
     early_stopping_min_delta = float(sup_cfg.get('early_stopping_min_delta', 1e-3))
+    monitor_metric = str(sup_cfg.get('monitor_metric', 'non_empty_f1_mean'))
+    val_threshold = float(sup_cfg.get('val_threshold', 0.5))
 
     if sup_cfg.get('balance', True):
-        sampler = build_sampler(train_patches, min_crop_fraction=sup_cfg.get('min_crop_fraction', 0.01))
+        sampler = build_sampler(
+            train_patches,
+            min_crop_fraction=float(sup_cfg.get('min_crop_fraction', 0.01)),
+            pos_weight=float(sup_cfg.get('sampler_pos_weight', 1.0)),
+            neg_weight=float(sup_cfg.get('sampler_neg_weight', 0.25)),
+            crop_power=float(sup_cfg.get('sampler_crop_power', 0.0)),
+            boundary_weight=float(sup_cfg.get('sampler_boundary_weight', 0.0))
+        )
         train_loader = DataLoader(train_ds, batch_size=batch_size, sampler=sampler, num_workers=0)
     else:
         train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0)
@@ -135,7 +245,16 @@ def train_supervised(config: Dict):
             images = images.to(device)
             masks = masks.to(device)
             logits = model(images)
+            probs = torch.sigmoid(logits)
             loss = bce_weight * bce(logits, masks) + dice_weight * dice_loss(logits, masks)
+            if focal_weight > 0.0:
+                loss = loss + focal_weight * focal_loss(logits, masks, alpha=focal_alpha, gamma=focal_gamma)
+            if tversky_weight > 0.0:
+                loss = loss + tversky_weight * tversky_loss(probs, masks, alpha=tversky_alpha, beta=tversky_beta)
+            if boundary_weight > 0.0:
+                loss = loss + boundary_weight * boundary_dice_loss(logits, masks, dilation=boundary_dilation)
+            if boundary_bg_weight > 0.0:
+                loss = loss + boundary_bg_weight * boundary_dice_loss(-logits, 1.0 - masks, dilation=boundary_dilation)
 
             optimizer.zero_grad()
             loss.backward()
@@ -144,23 +263,38 @@ def train_supervised(config: Dict):
 
         model.eval()
         val_metrics = []
+        val_non_empty_metrics = []
+        non_empty_count = 0
         with torch.no_grad():
             for images, masks in val_loader:
                 images = images.to(device)
                 masks = masks.to(device)
                 logits = model(images)
-                preds = (torch.sigmoid(logits) > 0.5).float().cpu().numpy()
+                preds = (torch.sigmoid(logits) > val_threshold).float().cpu().numpy()
                 gts = masks.cpu().numpy()
                 for p, g in zip(preds, gts):
-                    val_metrics.append(metrics.calculate_all(p[0], g[0]))
+                    metrics_row = metrics.calculate_all(p[0], g[0])
+                    val_metrics.append(metrics_row)
+                    if _is_non_empty_mask(g[0]):
+                        val_non_empty_metrics.append(metrics_row)
+                        non_empty_count += 1
 
-        val_dice = float(np.mean([m['dice'] for m in val_metrics])) if val_metrics else 0.0
+        aggregated = _aggregate_metrics(val_metrics)
+        aggregated.update(_aggregate_metrics(val_non_empty_metrics, prefix="non_empty_"))
+        aggregated["non_empty_count"] = int(non_empty_count)
+        aggregated["non_empty_ratio"] = float(non_empty_count / max(1, len(val_metrics)))
+
+        val_dice = float(aggregated.get('dice_mean', 0.0))
+        monitor_value = float(aggregated.get(monitor_metric, val_dice))
         avg_loss = float(np.mean(train_losses)) if train_losses else 0.0
-        print(f"Epoch {epoch+1}: loss={avg_loss:.4f}, val_dice={val_dice:.4f}")
-        scheduler.step(val_dice)
+        print(
+            f"Epoch {epoch+1}: loss={avg_loss:.4f}, val_dice={val_dice:.4f}, "
+            f"{monitor_metric}={monitor_value:.4f}, non_empty_ratio={aggregated['non_empty_ratio']:.3f}"
+        )
+        scheduler.step(monitor_value)
 
-        if val_dice > best_dice + early_stopping_min_delta:
-            best_dice = val_dice
+        if monitor_value > best_dice + early_stopping_min_delta:
+            best_dice = monitor_value
             torch.save({'model_state_dict': model.state_dict()}, best_path)
             print(f"Saved best model: {best_path}")
             epochs_without_improvement = 0
@@ -169,7 +303,7 @@ def train_supervised(config: Dict):
 
         if epochs_without_improvement >= early_stopping_patience:
             print(
-                f"Early stopping at epoch {epoch+1} (best_val_dice={best_dice:.4f}, "
+                f"Early stopping at epoch {epoch+1} (best_val_metric={best_dice:.4f}, "
                 f"patience={early_stopping_patience})"
             )
             break

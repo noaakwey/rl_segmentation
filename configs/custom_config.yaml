@@ -24,9 +24,24 @@ supervised:
   early_stopping_patience: 10
   early_stopping_min_delta: 0.001
   bce_weight: 0.5
-  dice_weight: 0.5
+  dice_weight: 0.3
+  focal_weight: 0.1
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  tversky_weight: 0.1
+  tversky_alpha: 0.5
+  tversky_beta: 0.5
+  boundary_weight: 0.05
+  boundary_bg_weight: 0.05
+  boundary_dilation: 1
+  monitor_metric: non_empty_f1_mean
+  val_threshold: 0.5
   balance: true
-  min_crop_fraction: 0.01
+  min_crop_fraction: 0.02
+  sampler_pos_weight: 1.0
+  sampler_neg_weight: 0.6
+  sampler_crop_power: 0.0
+  sampler_boundary_weight: 2.0
   base_channels: 32
   bands: all
 
@@ -36,6 +51,8 @@ supervised_eval:
   threshold_steps: 9
   n_visualize: 6
   use_tta: true
+  tta_mode: fliprot
+  selection_metric: non_empty_f1_mean
 
 production:
   tile_size: 1024
