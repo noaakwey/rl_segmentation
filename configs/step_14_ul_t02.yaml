@@ -5,8 +5,10 @@ stride: 128
 train_ratio: 0.7
 val_ratio: 0.15
 test_ratio: 0.15
-output_dir: experiments/my_custom_experiment
+output_dir: experiments/step_14_ep100_ppr04_f1
 seed: 42
+training_plots:
+  smooth_window: 5
 
 normalization:
   mode: percentile
@@ -15,52 +17,55 @@ normalization:
 
 supervised:
   batch_size: 8
-  num_epochs: 50
-  learning_rate: 0.0003
+  num_epochs: 100
+  learning_rate: 0.0005
   weight_decay: 0.0001
   min_learning_rate: 0.000001
   lr_reduce_factor: 0.5
-  lr_reduce_patience: 5
+  lr_reduce_patience: 3
   early_stopping_patience: 10
   early_stopping_min_delta: 0.001
   bce_weight: 0.5
-  dice_weight: 0.3
-  focal_weight: 0.1
-  focal_alpha: 0.25
-  focal_gamma: 2.0
-  tversky_weight: 0.1
-  tversky_alpha: 0.5
-  tversky_beta: 0.5
-  boundary_weight: 0.05
-  boundary_bg_weight: 0.05
-  boundary_dilation: 1
-  monitor_metric: non_empty_f1_mean
-  val_threshold: 0.5
+  dice_weight: 0.5
+  boundary_weight: 0.02
+  boundary_dilation: 0
   balance: true
-  min_crop_fraction: 0.02
-  sampler_pos_weight: 1.0
-  sampler_neg_weight: 0.6
-  sampler_crop_power: 0.0
-  sampler_boundary_weight: 2.0
+  min_crop_fraction: 0.01
+  positive_patch_ratio: 0.4
   base_channels: 32
   bands: all
+  augmentations:
+    enabled: true
+    hflip: true
+    hflip_p: 0.5
+    vflip: true
+    vflip_p: 0.5
+    rotate90: true
+    rotate90_p: 0.5
+    shift_scale_rotate: true
+    shift_scale_rotate_p: 0.5
+    shift_limit: 0.05
+    scale_limit: 0.1
+    rotate_limit: 10
 
 supervised_eval:
   threshold_min: 0.3
   threshold_max: 0.7
   threshold_steps: 9
+  threshold_metric: f1
   n_visualize: 6
   use_tta: true
-  tta_mode: fliprot
-  selection_metric: non_empty_f1_mean
 
 production:
-  tile_size: 1024
+  tile_size: 2048
   context: 128
-  threshold: 0.4
+  threshold: 0.2
   use_tta: false
-  batch_size: 8
-  bands: [1, 2, 3]
+  batch_size: 4
+  bands: [1, 2, 3, 4]
+  use_alpha_mask: false
+  global_percentile: true
+  percentile_downsample: 1024
   min_area_pixels: 4096
   vectorize: true
 

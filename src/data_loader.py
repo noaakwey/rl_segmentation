@@ -53,6 +53,9 @@ class GeoDataLoader:
         self.p_low = p_low
         self.p_high = p_high
 
+        # Normalization statistics (populated after load)
+        self.norm_percentiles = None  # dict: {"p_low": [...], "p_high": [...]}
+
         # Load data
         self.image_data = None
         self.mask_data = None
@@ -169,13 +172,21 @@ class GeoDataLoader:
 
         if self.normalize_mode == "percentile":
             # Per-band percentile clipping to [0,1]
+            p_low_vals = []
+            p_high_vals = []
             for b in range(image.shape[0]):
                 p_low = np.percentile(image[b], self.p_low)
                 p_high = np.percentile(image[b], self.p_high)
+                p_low_vals.append(float(p_low))
+                p_high_vals.append(float(p_high))
                 if p_high <= p_low:
                     continue
                 band = np.clip(image[b], p_low, p_high)
                 image[b] = (band - p_low) / (p_high - p_low + 1e-8)
+            self.norm_percentiles = {
+                "p_low": p_low_vals,
+                "p_high": p_high_vals,
+            }
             return image
 
         # Fallback: min/max by dtype

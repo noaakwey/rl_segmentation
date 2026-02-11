@@ -24,9 +24,46 @@ from src.rewards import MetricsCalculator
 from src.supervised_eval import evaluate_supervised
 
 
+def _selective_erosion(mask: np.ndarray, iterations: int) -> np.ndarray:
+    """Erode field mask only at instance-to-instance boundaries.
+
+    Unlike uniform erosion, this preserves the outer field boundary
+    (adjacent to roads, forest strips, general background).  Only the shared
+    border between two touching field instances is eroded, creating a gap
+    that forces the model to learn separation without shrinking all fields.
+
+    Algorithm:
+      1. Label each connected field region (instance) with a unique id.
+      2. For each instance, dilate it by `iterations` pixels.
+      3. Any dilated-A pixel that falls inside a *different* instance B marks
+         a boundary zone between A and B.
+      4. Remove the boundary zone pixels from the mask.
+    """
+    from scipy.ndimage import binary_dilation, label
+
+    binary = mask > 0.5
+    field_labels, num_fields = label(binary)
+
+    if num_fields <= 1:
+        # Single (or no) field: no inter-instance boundary, nothing to erode.
+        return binary.astype(np.float32)
+
+    # Accumulate pixels that lie inside a neighbour's body after dilation
+    boundary_zone = np.zeros_like(binary, dtype=bool)
+    for fid in range(1, num_fields + 1):
+        instance = field_labels == fid
+        dilated  = binary_dilation(instance, iterations=iterations)
+        # Pixels of the dilation that belong to OTHER instances
+        other_instances = binary & (field_labels != fid)
+        boundary_zone |= dilated & other_instances
+
+    return (binary & ~boundary_zone).astype(np.float32)
+
+
 class PatchDataset(Dataset):
-    def __init__(self, patches: List[Dict]):
+    def __init__(self, patches: List[Dict], mask_erosion: int = 0):
         self.patches = patches
+        self.mask_erosion = mask_erosion
 
     def __len__(self) -> int:
         return len(self.patches)
@@ -34,7 +71,10 @@ class PatchDataset(Dataset):
     def __getitem__(self, idx: int):
         patch = self.patches[idx]
         image = torch.from_numpy(patch['image']).float()
-        mask = torch.from_numpy(patch['mask']).float().unsqueeze(0)
+        mask = patch['mask']
+        if self.mask_erosion > 0:
+            mask = _selective_erosion(mask, self.mask_erosion)
+        mask = torch.from_numpy(mask).float().unsqueeze(0)
         return image, mask
 
 
@@ -169,6 +209,7 @@ def train_supervised(config: Dict):
     )
 
     image, _ = loader.load_all()
+    norm_percentiles = loader.norm_percentiles  # save for checkpoint
     patches = loader.extract_patches()
 
     train_patches, val_patches, _ = DatasetSplitter.spatial_split(
@@ -178,8 +219,9 @@ def train_supervised(config: Dict):
         test_ratio=config.get('test_ratio', 0.15)
     )
 
-    train_ds = PatchDataset(train_patches)
-    val_ds = PatchDataset(val_patches)
+    mask_erosion = int(sup_cfg.get('mask_erosion', 0))
+    train_ds = PatchDataset(train_patches, mask_erosion=mask_erosion)
+    val_ds = PatchDataset(val_patches)  # val без эрозии — оцениваем по оригинальным маскам
 
     batch_size = sup_cfg.get('batch_size', 8)
     num_epochs = sup_cfg.get('num_epochs', 50)
@@ -295,7 +337,10 @@ def train_supervised(config: Dict):
 
         if monitor_value > best_dice + early_stopping_min_delta:
             best_dice = monitor_value
-            torch.save({'model_state_dict': model.state_dict()}, best_path)
+            torch.save({
+                'model_state_dict': model.state_dict(),
+                'norm_percentiles': norm_percentiles,
+            }, best_path)
             print(f"Saved best model: {best_path}")
             epochs_without_improvement = 0
         else:

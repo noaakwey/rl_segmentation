@@ -1,0 +1,189 @@
+данный код 
+!python src/supervised_train.py --config "configs\custom_config (версия от 27.01.2026 16-35-04).yaml"
+выдает
+d:\Cache\Yandex.Disk\РАЗРАБОТКА\code\rl_segmentation
+Epoch 1: loss=0.3574, val_dice=0.8650, non_empty_f1_mean=0.8544, non_empty_ratio=0.861
+Saved best model: experiments\my_custom_experiment\checkpoints\best_unet.pt
+Epoch 2: loss=0.2992, val_dice=0.8483, non_empty_f1_mean=0.8378, non_empty_ratio=0.861
+Epoch 3: loss=0.2779, val_dice=0.8096, non_empty_f1_mean=0.7845, non_empty_ratio=0.861
+Epoch 4: loss=0.2644, val_dice=0.8724, non_empty_f1_mean=0.8658, non_empty_ratio=0.861
+Saved best model: experiments\my_custom_experiment\checkpoints\best_unet.pt
+Epoch 5: loss=0.2560, val_dice=0.8420, non_empty_f1_mean=0.8333, non_empty_ratio=0.861
+Epoch 6: loss=0.2437, val_dice=0.8320, non_empty_f1_mean=0.8217, non_empty_ratio=0.861
+Epoch 7: loss=0.2334, val_dice=0.8779, non_empty_f1_mean=0.8749, non_empty_ratio=0.861
+Saved best model: experiments\my_custom_experiment\checkpoints\best_unet.pt
+Epoch 8: loss=0.2420, val_dice=0.8861, non_empty_f1_mean=0.8844, non_empty_ratio=0.861
+Saved best model: experiments\my_custom_experiment\checkpoints\best_unet.pt
+Epoch 9: loss=0.2443, val_dice=0.8945, non_empty_f1_mean=0.8913, non_empty_ratio=0.861
+Saved best model: experiments\my_custom_experiment\checkpoints\best_unet.pt
+Epoch 10: loss=0.2192, val_dice=0.8921, non_empty_f1_mean=0.8914, non_empty_ratio=0.861
+Epoch 11: loss=0.2282, val_dice=0.8883, non_empty_f1_mean=0.8870, non_empty_ratio=0.861
+Epoch 12: loss=0.2290, val_dice=0.8936, non_empty_f1_mean=0.8931, non_empty_ratio=0.861
+Saved best model: experiments\my_custom_experiment\checkpoints\best_unet.pt
+Epoch 13: loss=0.2151, val_dice=0.8942, non_empty_f1_mean=0.8939, non_empty_ratio=0.861
+Epoch 14: loss=0.2172, val_dice=0.8949, non_empty_f1_mean=0.8946, non_empty_ratio=0.861
+Saved best model: experiments\my_custom_experiment\checkpoints\best_unet.pt
+Epoch 15: loss=0.2058, val_dice=0.8880, non_empty_f1_mean=0.8866, non_empty_ratio=0.861
+Epoch 16: loss=0.2040, val_dice=0.8785, non_empty_f1_mean=0.8728, non_empty_ratio=0.861
+Epoch 17: loss=0.2143, val_dice=0.9021, non_empty_f1_mean=0.8947, non_empty_ratio=0.861
+...
+Epoch 26: loss=0.1587, val_dice=0.7535, non_empty_f1_mean=0.8749, non_empty_ratio=0.861
+Epoch 27: loss=0.1446, val_dice=0.8956, non_empty_f1_mean=0.8926, non_empty_ratio=0.861
+Epoch 28: loss=0.1466, val_dice=0.8860, non_empty_f1_mean=0.8787, non_empty_ratio=0.861
+Early stopping at epoch 28 (best_val_metric=0.9011, patience=10)
+с #%cd ..
+!python src/supervised_eval.py --config "configs\custom_config (версия от 27.01.2026 16-35-04).yaml" --checkpoint experiments/my_custom_experiment/checkpoints/best_unet.pt
+Test set size: 419 patches
+Predicting on validation set for threshold selection...
+Best threshold on val: 0.500 (non_empty_f1_mean=0.8994)
+Predicting on test set...
+Evaluating on test set...
+Visualization saved to experiments\my_custom_experiment\supervised_eval\supervised_predictions_visualization.png
+Metrics plot saved to experiments\my_custom_experiment\supervised_eval\supervised_metrics_distribution.png
+Metrics saved to experiments\my_custom_experiment\supervised_eval\supervised_metrics.json
+
+==================================================
+EVALUATION RESULTS (SUPERVISED)
+==================================================
+threshold_selected_on_val: 0.5000
+dice_mean: 0.7923
+dice_std: 0.3463
+dice_median: 0.9667
+iou_mean: 0.7561
+iou_std: 0.3524
+iou_median: 0.9355
+pixel_accuracy_mean: 0.9239
+pixel_accuracy_std: 0.1218
+pixel_accuracy_median: 0.9718
+precision_mean: 0.4853
+precision_std: 0.4700
+precision_median: 0.7704
+...
+non_empty_boundary_iou_std: 0.1800
+non_empty_boundary_iou_median: 0.3520
+non_empty_count: 268.0000
+non_empty_ratio: 0.6396
+однако
+!python src/production_unet_infer.py \
+  --image "D:\Cache\Yandex.Disk-amgafurov@kpfu.ru\Загрузки\midVolga_mosaic.tif" \
+  --checkpoint "experiments/my_custom_experiment/checkpoints/best_unet.pt" \
+  --config "configs\custom_config (версия от 27.01.2026 16-35-04).yaml" \
+  --output-mask "experiments/production/midvolga_mask.tif" \
+  --output-vector "experiments/production/midvolga_mask.gpkg"
+выдает
+Driver: GTiff/GeoTIFF
+
+Files: D:/Cache/Yandex.Disk/РАЗРАБОТКА/code/rl_segmentation/experiments/production/midvolga_mask.tif
+
+Size is 97870, 92372
+
+Coordinate System is:
+
+PROJCRS["WGS 84 / UTM zone 39N",
+
+    BASEGEOGCRS["WGS 84",
+
+        DATUM["World Geodetic System 1984",
+
+            ELLIPSOID["WGS 84",6378137,298.257223563,
+
+                LENGTHUNIT["metre",1]]],
+
+        PRIMEM["Greenwich",0,
+
+            ANGLEUNIT["degree",0.0174532925199433]],
+
+        ID["EPSG",4326]],
+
+    CONVERSION["UTM zone 39N",
+
+        METHOD["Transverse Mercator",
+
+            ID["EPSG",9807]],
+
+        PARAMETER["Latitude of natural origin",0,
+
+            ANGLEUNIT["degree",0.0174532925199433],
+
+            ID["EPSG",8801]],
+
+        PARAMETER["Longitude of natural origin",51,
+
+            ANGLEUNIT["degree",0.0174532925199433],
+
+            ID["EPSG",8802]],
+
+        PARAMETER["Scale factor at natural origin",0.9996,
+
+            SCALEUNIT["unity",1],
+
+            ID["EPSG",8805]],
+
+        PARAMETER["False easting",500000,
+
+            LENGTHUNIT["metre",1],
+
+            ID["EPSG",8806]],
+
+        PARAMETER["False northing",0,
+
+            LENGTHUNIT["metre",1],
+
+            ID["EPSG",8807]]],
+
+    CS[Cartesian,2],
+
+        AXIS["(E)",east,
+
+            ORDER[1],
+
+            LENGTHUNIT["metre",1]],
+
+        AXIS["(N)",north,
+
+            ORDER[2],
+
+            LENGTHUNIT["metre",1]],
+
+    USAGE[
+
+        SCOPE["Navigation and medium accuracy spatial referencing."],
+
+        AREA["Between 48°E and 54°E, northern hemisphere between equator and 84°N, onshore and offshore. Azerbaijan. Bahrain. Islamic Republic of Iran. Iraq. Kazakhstan. Kuwait. Oman. Qatar. Russian Federation. Saudi Arabia. Somalia. Turkmenistan. United Arab Emirates. Yemen."],
+
+        BBOX[0,48,84,54]],
+
+    ID["EPSG",32639]]
+
+Data axis to CRS axis mapping: 1,2
+
+Origin = (-117020.000000000000000,6387520.000000000000000)
+
+Pixel Size = (10.000000000000000,-10.000000000000000)
+
+Metadata:
+
+  AREA_OR_POINT=Area
+
+Image Structure Metadata:
+
+  COMPRESSION=LZW
+
+  INTERLEAVE=BAND
+
+Corner Coordinates:
+
+Upper Left  ( -117020.000, 6387520.000) ( 40d45'43.39"E, 57d12'43.02"N)
+
+Lower Left  ( -117020.000, 5463800.000) ( 42d33'24.85"E, 49d 1' 1.80"N)
+
+Upper Right (  861680.000, 6387520.000) ( 57d 2'14.23"E, 57d29' 7.68"N)
+
+Lower Right (  861680.000, 5463800.000) ( 55d58' 3.69"E, 49d13'12.03"N)
+
+Center      (  372330.000, 5925660.000) ( 49d 4'36.50"E, 53d27'52.00"N)
+
+Band 1 Block=1024x1024 Type=Byte, ColorInterp=Gray
+
+  NoData Value=0
+то есть все попало в целевой класс "поля", хотя по факту картинка @experiments\my_custom_experiment\supervised_eval\supervised_predictions_visualization.png

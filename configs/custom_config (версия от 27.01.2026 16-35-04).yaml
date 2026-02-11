@@ -1,0 +1,74 @@
+image_path: data/raw/satellite_image.tif
+shapefile_path: data/raw/crop_boundaries.shp
+patch_size: 256
+stride: 128
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+action_mode: patch
+reward_type: adaptive
+reward_mode: delta
+adaptive_reward:
+  dice_weight: 0.5
+  iou_weight: 0.3
+  boundary_weight: 0.2
+num_actions: 256
+sequential: false
+in_channels: 5
+feature_extractor: cnn
+num_epochs: 150
+episodes_per_epoch: 20
+val_episodes: 10
+learning_rate: 0.0003
+gamma: 0.99
+gae_lambda: 0.95
+clip_epsilon: 0.2
+value_coef: 0.5
+entropy_coef: 0.01
+ppo_epochs: 4
+batch_size: 64
+save_interval: 10
+use_wandb: false
+wandb_project: rl_crop_segmentation
+experiment_name: my_custom_experiment
+output_dir: experiments/my_custom_experiment
+seed: 42
+balance_patches: true
+positive_patch_ratio: 0.5
+min_crop_fraction: 0.01
+supervised:
+  bands: [1, 2, 3]
+  batch_size: 8
+  num_epochs: 50
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  min_learning_rate: 0.000001
+  lr_reduce_factor: 0.5
+  lr_reduce_patience: 5
+  early_stopping_patience: 10
+  early_stopping_min_delta: 0.001
+  bce_weight: 0.5
+  dice_weight: 0.5
+  mask_erosion: 2
+  balance: true
+  min_crop_fraction: 0.01
+  base_channels: 32
+supervised_eval:
+  threshold_min: 0.3
+  threshold_max: 0.7
+  threshold_steps: 9
+  n_visualize: 6
+  use_tta: true
+production:
+  tile_size: 2048
+  context: 128
+  threshold: 0.45
+  use_tta: false
+  batch_size: 4
+  bands: [1, 2, 3]
+  min_area_pixels: 4096
+  vectorize: true
+  prefetch: 16
+  overlap: 256
+  morph_open_radius: 3
+  temp_dir: "D:/Temp"

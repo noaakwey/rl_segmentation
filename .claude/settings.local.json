@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(D:\\\\miniconda3\\\\envs\\\\geoml\\\\python.exe:*)",
+      "Bash(powershell -Command \"Set-Location 'd:\\\\Cache\\\\Yandex.Disk\\\\РАЗРАБОТКА\\\\code\\\\rl_segmentation'; D:\\\\miniconda3\\\\envs\\\\geoml\\\\python.exe check_bands.py\":*)"
+    ]
+  }
+}
